@@ -179,3 +179,7 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+/cursor_context
+
+anthropic_api_key.txt
+tavily_api_key.txt
