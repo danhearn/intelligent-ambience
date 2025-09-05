@@ -30,4 +30,4 @@ img_url = 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/demo
 
 if __name__ == "__main__":
     main_graph = MainGraph()
-    main_graph.run("Honolulu Hawaii", img_url=img_url)
+    main_graph.run("Brighton Beach, UK", img_url=img_url)
