@@ -6,6 +6,7 @@ from agents.supervisor_agent import SupervisorAgent
 from agents.global_context_agent import GlobalContextAgent
 from agents.local_context_agent import LocalContextAgent
 from agents.music_generation_agent import MusicGenerationAgent
+from agents.memory_agent import MemoryAgent
 
 class MainGraph:
     def __init__(self):
@@ -13,10 +14,13 @@ class MainGraph:
         self.global_context_agent = GlobalContextAgent()
         self.local_context_agent = LocalContextAgent()
         self.music_generation_agent = MusicGenerationAgent()
+        self.memory_agent = MemoryAgent()
         self.graph = self.supervisor_agent.get_supervisor(
-            sub_agents=[self.global_context_agent.get_agent(),
-                        self.local_context_agent.get_agent(),
-                        self.music_generation_agent.get_agent()
+            sub_agents=[
+                self.global_context_agent.get_agent(),
+                self.local_context_agent.get_agent(),
+                self.music_generation_agent.get_agent(),
+                self.memory_agent.get_agent()
             ]
         ).compile()
 
@@ -26,8 +30,8 @@ class MainGraph:
         for m in result["messages"]:
             m.pretty_print()
     
-img_url = 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/demo.jpg' 
+img_url = 'https://farm5.staticflickr.com/4888/45890544791_0a419c887b_c.jpg' 
 
 if __name__ == "__main__":
     main_graph = MainGraph()
-    main_graph.run("Brighton Beach, UK", img_url=img_url)
+    main_graph.run("Sarajevo, Bosnia and Herzegovina", img_url=img_url)

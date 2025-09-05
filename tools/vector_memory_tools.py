@@ -5,13 +5,28 @@ from datetime import datetime
 
 
 class VectorMemory:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(VectorMemory, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
-        self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
-        self.vector_store = Chroma(
-            collection_name="example_collection",
-            embedding_function=self.embeddings,
-            persist_directory="./chroma_langchain_db",
-        )
+        if not self._initialized:
+            import os
+            # Ensure the directory exists
+            os.makedirs("./chroma_langchain_db", exist_ok=True)
+            
+            self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
+            self.vector_store = Chroma(
+                collection_name="intelligent_ambience_memory",
+                embedding_function=self.embeddings,
+                persist_directory="./chroma_langchain_db",
+            )
+            self._initialized = True
+            print(f"Vector memory initialized. Database location: {os.path.abspath('./chroma_langchain_db')}")
 
     def add_to_vector_store(self, text: str, metadata: dict = None):
         if metadata:
@@ -35,7 +50,7 @@ def add_to_vector_store(text: str):
     Returns:
         "Text added to vector store"
     """
-    return VectorMemory().add_to_vector_store(text)
+    return vector_memory_instance.add_to_vector_store(text)
 
 @tool
 def search_vector_store(text: str, k: int = 5):
@@ -47,7 +62,7 @@ def search_vector_store(text: str, k: int = 5):
     Returns:
         The most similar texts in the vector store
     """
-    results = VectorMemory().search_vector_store(text, k)
+    results = vector_memory_instance.search_vector_store(text, k)
     return [doc.page_content for doc in results]
 
 @tool
@@ -71,7 +86,7 @@ def add_music_generation_memory(context: str, environment: str, music_prompt: st
         "user_feedback": user_feedback,
         "timestamp": datetime.now().isoformat()
     }
-    VectorMemory().add_to_vector_store(text, metadata)
+    vector_memory_instance.add_to_vector_store(text, metadata)
     return f"Recorded music generation: {music_prompt} for {environment}"
 
 @tool
@@ -84,7 +99,7 @@ def search_music_memory(query: str, k: int = 5):
     Returns:
         Similar music generations with context
     """
-    results = VectorMemory().search_with_metadata(query, k)
+    results = vector_memory_instance.search_with_metadata(query, k)
     if not results:
         return f"No similar music found for query: {query}"
     
@@ -120,7 +135,7 @@ def add_user_preference(key: str, value: str, category: str = "general"):
         "category": category,
         "timestamp": datetime.now().isoformat()
     }
-    VectorMemory().add_to_vector_store(text, metadata)
+    vector_memory_instance.add_to_vector_store(text, metadata)
     return f"Remembered preference: {key} = {value} in category {category}"
 
 @tool
@@ -134,7 +149,7 @@ def search_preferences(query: str, category: str = "", k: int = 5):
     Returns:
         Found preferences with similarity scores
     """
-    results = VectorMemory().search_with_metadata(query, k)
+    results = vector_memory_instance.search_with_metadata(query, k)
     if not results:
         return f"No preferences found for query: {query}"
     
@@ -180,7 +195,7 @@ def add_environment_pattern(location: str, time_of_day: str, environment_descrip
         "preferred_music_style": preferred_music_style,
         "timestamp": datetime.now().isoformat()
     }
-    VectorMemory().add_to_vector_store(text, metadata)
+    vector_memory_instance.add_to_vector_store(text, metadata)
     return f"Learned pattern: {preferred_music_style} works well for {environment_description} in {location} at {time_of_day}"
 
 @tool
@@ -195,7 +210,7 @@ def search_environment_patterns(query: str, location: str = "", time_of_day: str
     Returns:
         Found environment patterns with similarity scores
     """
-    results = VectorMemory().search_with_metadata(query, k)
+    results = vector_memory_instance.search_with_metadata(query, k)
     if not results:
         return f"No environment patterns found for query: {query}"
     
@@ -222,6 +237,7 @@ def search_environment_patterns(query: str, location: str = "", time_of_day: str
     
     return response
 
+vector_memory_instance = VectorMemory()
 
 def get_vector_memory_tools():
     """Get all vector memory tools for the intelligent ambience system"""
