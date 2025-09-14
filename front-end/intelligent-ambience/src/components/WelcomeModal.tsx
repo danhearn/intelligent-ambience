@@ -1,5 +1,5 @@
 "use client"
-import {Card, CardHeader, CardTitle, CardContent, CardFooter, CardAction} from "@/components/ui/card"
+import {Card, CardHeader, CardTitle, CardContent, CardFooter} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import { useState } from "react";
@@ -10,7 +10,6 @@ export default function WelcomeModal(props: {isOpen: boolean}) {
     const [isOpen, setIsOpen] = useState(props.isOpen);
     const handleClose = () => {
         setIsOpen(false);
-
     }
     return (
         <>
@@ -33,7 +32,7 @@ export default function WelcomeModal(props: {isOpen: boolean}) {
                             The project is designed to show both the possibilities and the limitations of this kind of technology. By giving feedback on the soundscapes, you help the system learn what people associate with ambience. Over time, this feedback builds a collective understanding of how ambience should feel.
                         </p>
                         <p className="mb-4">
-                            Agentic Ambience is a way to explore how machines interpret the world and how people can shape that interpretation together. Let's see what happens...
+                            Agentic Ambience is a way to explore how machines interpret the world and how people can shape that interpretation together. Let&apos;s see what happens...
                         </p>
                         <small className="text-xs">The system is built using a combination of open-source generative AI models, which will have their own biases and limitations.</small>
                     </AccordionContent>
