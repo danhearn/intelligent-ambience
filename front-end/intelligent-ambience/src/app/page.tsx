@@ -1,6 +1,6 @@
 "use client"
 
-import WelcomeModal from "@/components/welomeModal"
+import WelcomeModal from "@/components/WelcomeModal"
 import Generate from "@/app/generate/page"
 import { useState } from "react";
 
