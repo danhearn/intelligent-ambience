@@ -9,7 +9,6 @@ export default function Home() {
   return (
     <>
       <WelcomeModal isOpen={isOpen} />
-      <Generate />
     </>
   );
 }
