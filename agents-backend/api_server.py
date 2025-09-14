@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 from main_graph import MainGraph
@@ -7,6 +8,15 @@ import threading
 from typing import Optional
 
 app = FastAPI(title="Intelligent Ambience API", version="1.0.0")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 # Global instance - initialized once on startup
 main_graph = None
@@ -74,7 +84,7 @@ if __name__ == "__main__":
     # Run with: python api_server.py
     uvicorn.run(
         "api_server:app", 
-        host="0.0.0.0", 
+        host="127.0.0.1", 
         port=8000, 
         reload=True,
         log_level="info"
