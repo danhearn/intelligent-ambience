@@ -1,16 +1,28 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
 
 export default function Generate() {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [currentCamera, setCurrentCamera] = useState<'front' | 'back'>('back')
-  const [location, setLocation] = useState<{lat: number, lng: number, address: string} | null>(null)
-  const [error, setError] = useState<string>('')
+  const [location, setLocation] = useState<{ lat: number, lng: number, address: string } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  
+  //WebSocket
+  const wsRef = useRef<WebSocket | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState("idle");
+  const [thinking, setThinking] = useState<string>(""); // live stream text
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [thinking]);
 
   // Get user's location
   useEffect(() => {
@@ -52,7 +64,7 @@ export default function Generate() {
       setIsLoading(true)
       const devices = await navigator.mediaDevices.enumerateDevices()
       const videoDevices = devices.filter(device => device.kind === 'videoinput')
-      
+
       if (videoDevices.length === 0) {
         setError('No cameras found')
         return
@@ -68,7 +80,7 @@ export default function Generate() {
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
       setStream(mediaStream)
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream
       }
@@ -99,12 +111,12 @@ export default function Generate() {
       const canvas = canvasRef.current
       const video = videoRef.current
       const context = canvas.getContext('2d')
-      
+
       if (context) {
         canvas.width = video.videoWidth
         canvas.height = video.videoHeight
         context.drawImage(video, 0, 0)
-        
+
         // Convert to blob and handle the photo
         canvas.toBlob((blob) => {
           if (blob) {
@@ -124,135 +136,158 @@ export default function Generate() {
     }
   }, [stream])
 
-  const  handleGenerate = async () => {
-    const generated = await generate()
-    console.log(generated)
-  }
+  useEffect(() => {
+    startCamera()
+  })
+
+  const handleGenerate = () => {
+    // Close any existing socket first
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.close();
+    }
+    setThinking("");
+    setStatus("connecting");
+    setDone(false);
+    setError(null);
+
+    const ws = new WebSocket("ws://127.0.0.1:8000/ws/generate"); // dev URL
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setConnected(true);
+      setStatus("connected");
+      ws.send(JSON.stringify({
+        type: "init",
+        query: location ? location.address : "Unknown location",
+        img_url: "no image provided",
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      switch (msg.type) {
+        case "token":
+          setThinking(prev => prev + (msg.text ?? ""));
+          break;
+        case "status":
+          setStatus(msg.message ?? "working...");
+          break;
+        case "progress":
+          setStatus(`${msg.step ?? "Processing"} ${msg.percent ?? 0}%`);
+          break;
+        case "error":
+          setError(msg.message ?? "Error");
+          setConnected(false);
+          ws.close();
+          break;
+        case "done":
+          setDone(true);
+          setConnected(false);
+          ws.close();
+          break;
+      }
+    };
+
+    ws.onerror = () => {
+      setError("WebSocket error");
+      setConnected(false);
+    };
+
+    ws.onclose = () => {
+      setConnected(false);
+    };
+  };
+
+  const handleCancel = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "cancel" }));
+      wsRef.current.close();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
+      }
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen p-4">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8">Generate Ambient Music</h1>
-        
-        {/* Location and Time Display */}
-        <div className="bg-white rounded-lg p-4 mb-6 shadow-md">
+    <div className="min-h-screen mx-4 md:mx-auto max-w-7xl">
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 ">
+
+        <div className="md:col-span-2 col-span-1">
+          <h1 className="text-3xl text-center mb-8">Generate Ambient Music</h1>
+        </div>
+
+        <div className='col-span-1'>
           <h2 className="text-xl font-semibold mb-2">Current Context</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-600">Location:</p>
               <p className="font-medium">
-                {location ? location.address : 'Getting location...'}
+                {location ? location.address.split(',')[0] : 'Getting location...'}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Time:</p>
               <p className="font-medium">
-                {new Date().toLocaleString()}
+                {new Date().toLocaleString().split(',')[1]}
               </p>
             </div>
           </div>
-        </div>
 
         {/* Camera Interface */}
-        <div className="bg-white rounded-lg p-6 shadow-md">
+   
           <h2 className="text-xl font-semibold mb-4">Capture Your Environment</h2>
-          
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
-          )}
 
           <div className="space-y-4">
             {/* Video Preview */}
-            <div className="relative bg-black rounded-lg overflow-hidden">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-64 md:h-96 object-cover"
-              />
-              <canvas
-                ref={canvasRef}
-                className="hidden"
-              />
-            </div>
-
-            {/* Camera Controls */}
-            <div className="flex flex-wrap gap-4 justify-center">
-              {!stream ? (
-                <button
-                  onClick={startCamera}
-                  disabled={isLoading}
-                  className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium"
-                >
-                  {isLoading ? 'Starting Camera...' : 'Start Camera'}
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={takePhoto}
-                    className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium"
-                  >
-                    Take Photo
-                  </button>
-                  <button
+            {!stream ? (
+              <p>No camera detected</p>
+            ) : (
+              <><div className="relative">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-64 md:h-96 object-cover" />
+                  <canvas
+                    ref={canvasRef}
+                    className="hidden" />
+                </div><Button
+                  onClick={takePhoto}>
+                    capture
+                  </Button>
+                  <Button
                     onClick={switchCamera}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium"
-                  >
-                    Switch Camera
-                  </button>
-                  <button
-                    onClick={stopCamera}
-                    className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-medium"
-                  >
-                    Stop Camera
-                  </button>
+                    variant={'link'}>
+                      switch camera
+                  </Button>
                 </>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
         {/* Generate Button */}
-        <div className="text-center mt-8">
-          <button
-            className="bg-purple-500 hover:bg-purple-600 text-white px-8 py-3 rounded-lg font-medium text-lg"
-            disabled={!location}
-            onClick={handleGenerate}
-          >
-            Generate Ambient Music
-          </button>
+        <div className="col-span-1">
+          <h2 className="text-xl font-semibold mb-4">System Messages</h2>
+          <div className="text-sm text-gray-600">Status: {status}{done ? " (done)" : ""}</div>
+          {/*{error && <div className="text-red-600 text-sm">Error: {error}</div>}*/}
+          <div className="bg-black text-green-200 font-mono p-3 rounded h-48 overflow-auto mb-4">
+            <pre className="whitespace-pre-wrap break-words">{thinking}</pre>
+            <div ref={logEndRef} />
+          </div>
+          <div className="flex gap-3">
+            <Button
+              onClick={handleGenerate}
+              disabled={connected}
+            >
+              {connected ? "Thinking..." : "Start"}
+            </Button>
+            <Button onClick={handleCancel} variant={'ghost'} disabled={!connected}>Cancel</Button>
+          </div>
         </div>
+
       </div>
     </div>
   )
-}
-
-async function generate() {
-  try {
-    const response = await fetch(
-      "/api/generate",
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: "Generate ambient music based on my current environment and location",
-          img_url: "no image provided",
-          user_feedback: ""
-        })
-      }
-    );
-    if (!response.ok) {
-      throw new Error("Failed to fetch data");
-    }
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error("Error Generating:", error);
-    return null;
-  }
 }
