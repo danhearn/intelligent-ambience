@@ -286,7 +286,6 @@ export default function Generate() {
             <Button onClick={handleCancel} variant={'ghost'} disabled={!connected}>Cancel</Button>
           </div>
         </div>
-
       </div>
     </div>
   )
