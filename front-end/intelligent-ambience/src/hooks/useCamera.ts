@@ -35,6 +35,10 @@ export const useCamera = () => {
 
             if (videoRef.current) {
                 videoRef.current.srcObject = mediaStream;
+                console.log('Camera stream set to video element:', mediaStream);
+                console.log('Video element:', videoRef.current);
+            } else {
+                console.log('Video ref not available yet');
             }
         } catch (err) {
             setError('Camera access denied');
@@ -80,6 +84,14 @@ export const useCamera = () => {
             }
         });
     }, []);
+
+    // Ensure video element gets the stream when it becomes available
+    useEffect(() => {
+        if (stream && videoRef.current) {
+            videoRef.current.srcObject = stream;
+            console.log('Stream assigned to video element in useEffect');
+        }
+    }, [stream]);
 
     // Cleanup on unmount
     useEffect(() => {

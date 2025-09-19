@@ -53,8 +53,16 @@ export default function Generate() {
 
   // Start camera on mount
   useEffect(() => {
+    console.log('Starting camera...');
     startCamera()
   }, [startCamera])
+
+  // Debug stream state
+  useEffect(() => {
+    console.log('Stream state changed:', stream);
+    console.log('Camera loading:', cameraLoading);
+    console.log('Camera error:', cameraError);
+  }, [stream, cameraLoading, cameraError])
 
   const handleGenerate = () => {
     connect({
@@ -117,30 +125,37 @@ export default function Generate() {
             )}
 
             {/* Video Preview */}
-            {!stream && !cameraLoading ? (
-              <p className="text-gray-600">No camera detected</p>
-            ) : stream ? (
-              <>
-                <div className="relative">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-64 md:h-96 object-cover rounded" />
-                  <canvas ref={canvasRef} className="hidden" />
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={async () => {
-                    const photo = await takePhoto()
-                    if (photo) {
-                      console.log('Photo taken:', photo)
-                      // Here you would send the photo to your API
-                    }
-                  }}>
-                    Capture
-                  </Button>
-                  <Button onClick={switchCamera} variant="outline">
-                    Switch Camera
-                  </Button>
-                </div>
-              </>
-            ) : null}
+            <div className="relative">
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                className="w-full h-64 md:h-96 object-cover rounded bg-gray-200" 
+              />
+              <canvas ref={canvasRef} className="hidden" />
+            </div>
+            
+            {!stream && !cameraLoading && (
+              <p className="text-gray-600 text-center mt-2">No camera stream available</p>
+            )}
+            
+            {stream && (
+              <div className="flex gap-2 mt-2">
+                <Button onClick={async () => {
+                  const photo = await takePhoto()
+                  if (photo) {
+                    console.log('Photo taken:', photo)
+                    // Here you would send the photo to your API
+                  }
+                }}>
+                  Capture
+                </Button>
+                <Button onClick={switchCamera} variant="outline">
+                  Switch Camera
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
