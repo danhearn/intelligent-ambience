@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 export const useCamera = () => {
     const [stream, setStream] = useState<MediaStream | null>(null);
@@ -9,7 +9,7 @@ export const useCamera = () => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    const startCamera = async () => {
+    const startCamera = useCallback(async () => {
         try {
             setIsLoading(true);
             setError(null);
@@ -42,21 +42,50 @@ export const useCamera = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []); // Only run once on mount
 
-    const stopCamera = () => {
+    const stopCamera = useCallback(() => {
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
             setStream(null);
         }
-    };
+    }, [stream]);
 
-    const switchCamera = () => {
+    const switchCamera = useCallback(async () => {
         stopCamera();
-        setCurrentCamera(prev => prev === 'front' ? 'back' : 'front');
-    };
+        const newCamera = currentCamera === 'front' ? 'back' : 'front';
+        setCurrentCamera(newCamera);
+        
+        // Start camera with new facing mode after a brief delay
+        setTimeout(async () => {
+            try {
+                setIsLoading(true);
+                setError(null);
+                
+                const constraints = {
+                    video: {
+                        facingMode: newCamera === 'front' ? 'user' : 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
 
-    const takePhoto = (): Promise<Blob | null> => {
+                const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                setStream(mediaStream);
+
+                if (videoRef.current) {
+                    videoRef.current.srcObject = mediaStream;
+                }
+            } catch (err) {
+                setError('Camera access denied');
+                console.error('Camera error:', err);
+            } finally {
+                setIsLoading(false);
+            }
+        }, 100);
+    }, [currentCamera, stopCamera]);
+
+    const takePhoto = useCallback((): Promise<Blob | null> => {
         return new Promise((resolve) => {
             if (videoRef.current && canvasRef.current) {
                 const canvas = canvasRef.current;
@@ -78,7 +107,7 @@ export const useCamera = () => {
                 resolve(null);
             }
         });
-    };
+    }, []);
 
     // Cleanup on unmount
     useEffect(() => {
