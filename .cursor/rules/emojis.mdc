@@ -1,0 +1,5 @@
+---
+description: never use emoji's when writing code, comments, or text.
+globs:
+alwaysApply: true
+---
