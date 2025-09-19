@@ -1,217 +1,62 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { useCamera } from '@/hooks/useCamera'
+import { useWebSocket } from '@/hooks/useWebSocket'
+import { useLocation } from '@/hooks/useLocation'
 
 export default function Generate() {
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [currentCamera, setCurrentCamera] = useState<'front' | 'back'>('back')
-  const [location, setLocation] = useState<{ lat: number, lng: number, address: string } | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  //WebSocket
-  const wsRef = useRef<WebSocket | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [status, setStatus] = useState("idle");
-  const [thinking, setThinking] = useState<string>(""); // live stream text
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-  const logEndRef = useRef<HTMLDivElement | null>(null);
+  // Camera hook
+  const {
+    stream,
+    currentCamera,
+    isLoading: cameraLoading,
+    error: cameraError,
+    videoRef,
+    canvasRef,
+    startCamera,
+    stopCamera,
+    switchCamera,
+    takePhoto
+  } = useCamera()
 
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  // Location hook
+  const { location, error: locationError, isLoading: locationLoading } = useLocation()
+  
+  // WebSocket hook
+  const {
+    connected,
+    status,
+    thinking,
+    error: wsError,
+    done,
+    connect,
+    disconnect
+  } = useWebSocket("ws://127.0.0.1:8000/ws/generate")
+  
+  const logEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thinking]);
 
-  // Get user's location
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords
-          try {
-            // Reverse geocoding to get address
-            const response = await fetch(
-              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-            )
-            const data = await response.json()
-            setLocation({
-              lat: latitude,
-              lng: longitude,
-              address: `${data.city}, ${data.principalSubdivision}, ${data.countryName}`
-            })
-          } catch (err) {
-            setLocation({
-              lat: latitude,
-              lng: longitude,
-              address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-            })
-          }
-        },
-        (error) => {
-          setError('Location access denied')
-        }
-      )
-    } else {
-      setError('Geolocation not supported')
-    }
-  }, [])
 
-  // Start camera
-  const startCamera = async () => {
-    try {
-      setIsLoading(true)
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      const videoDevices = devices.filter(device => device.kind === 'videoinput')
-
-      if (videoDevices.length === 0) {
-        setError('No cameras found')
-        return
-      }
-
-      const constraints = {
-        video: {
-          facingMode: currentCamera === 'front' ? 'user' : 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      }
-
-      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
-      setStream(mediaStream)
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-      }
-    } catch (err) {
-      setError('Camera access denied')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Stop camera
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
-    }
-  }
-
-  // Switch camera
-  const switchCamera = () => {
-    stopCamera()
-    setCurrentCamera(prev => prev === 'front' ? 'back' : 'front')
-  }
-
-  // Take photo
-  const takePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      const context = canvas.getContext('2d')
-
-      if (context) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        context.drawImage(video, 0, 0)
-
-        // Convert to blob and handle the photo
-        canvas.toBlob((blob) => {
-          if (blob) {
-            console.log('Photo taken:', blob)
-            // Here you would send the photo to your API
-          }
-        }, 'image/jpeg', 0.8)
-      }
-    }
-  }
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
-      }
-    }
-  }, [stream])
-
+  // Start camera on mount
   useEffect(() => {
     startCamera()
-  })
+  }, [startCamera])
 
   const handleGenerate = () => {
-    // Close any existing socket first
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.close();
-    }
-    setThinking("");
-    setStatus("connecting");
-    setDone(false);
-    setError(null);
-
-    const ws = new WebSocket("ws://127.0.0.1:8000/ws/generate"); // dev URL
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setConnected(true);
-      setStatus("connected");
-      ws.send(JSON.stringify({
-        type: "init",
-        query: location ? location.address : "Unknown location",
-        img_url: "no image provided",
-      }));
-    };
-
-    ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      switch (msg.type) {
-        case "token":
-          setThinking(prev => prev + (msg.text ?? ""));
-          break;
-        case "status":
-          setStatus(msg.message ?? "working...");
-          break;
-        case "progress":
-          setStatus(`${msg.step ?? "Processing"} ${msg.percent ?? 0}%`);
-          break;
-        case "error":
-          setError(msg.message ?? "Error");
-          setConnected(false);
-          ws.close();
-          break;
-        case "done":
-          setDone(true);
-          setConnected(false);
-          ws.close();
-          break;
-      }
-    };
-
-    ws.onerror = () => {
-      setError("WebSocket error");
-      setConnected(false);
-    };
-
-    ws.onclose = () => {
-      setConnected(false);
-    };
+    connect({
+      query: location ? location.address : "Unknown location",
+      img_url: "no image provided",
+    });
   };
 
   const handleCancel = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "cancel" }));
-      wsRef.current.close();
-    }
+    disconnect();
   };
-
-  useEffect(() => {
-    return () => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.close();
-      }
-    };
-  }, []);
 
   return (
     <div className="min-h-screen mx-4 md:mx-auto max-w-7xl">
@@ -228,8 +73,13 @@ export default function Generate() {
             <div>
               <p className="text-sm text-gray-600">Location:</p>
               <p className="font-medium">
-                {location ? location.address.split(',')[0] : 'Getting location...'}
+                {locationLoading ? 'Getting location...' : 
+                 locationError ? 'Location unavailable' :
+                 location ? location.address.split(',')[0] : 'Unknown'}
               </p>
+              {locationError && (
+                <p className="text-xs text-red-500">{locationError}</p>
+              )}
             </div>
             <div>
               <p className="text-sm text-gray-600">Time:</p>
@@ -240,30 +90,48 @@ export default function Generate() {
           </div>
 
         {/* Camera Interface */}
-   
           <h2 className="text-xl font-semibold mb-4">Capture Your Environment</h2>
 
           <div className="space-y-4">
-            {/* Video Preview */}
-            {!stream ? (
-              <p>No camera detected</p>
-            ) : (
-              <><div className="relative">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-64 md:h-96 object-cover" />
-                  <canvas
-                    ref={canvasRef}
-                    className="hidden" />
-                </div><Button
-                  onClick={takePhoto}>
-                    capture
-                  </Button>
-                  <Button
-                    onClick={switchCamera}
-                    variant={'link'}>
-                      switch camera
-                  </Button>
-                </>
+            {/* Error Display */}
+            {cameraError && (
+              <div className="text-red-600 text-sm bg-red-50 p-2 rounded">
+                {cameraError}
+              </div>
             )}
+
+            {/* Loading State */}
+            {cameraLoading && (
+              <div className="text-gray-600 text-sm">
+                Starting camera...
+              </div>
+            )}
+
+            {/* Video Preview */}
+            {!stream && !cameraLoading ? (
+              <p className="text-gray-600">No camera detected</p>
+            ) : stream ? (
+              <>
+                <div className="relative">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-64 md:h-96 object-cover rounded" />
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={async () => {
+                    const photo = await takePhoto()
+                    if (photo) {
+                      console.log('Photo taken:', photo)
+                      // Here you would send the photo to your API
+                    }
+                  }}>
+                    Capture
+                  </Button>
+                  <Button onClick={switchCamera} variant="outline">
+                    Switch Camera
+                  </Button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -271,7 +139,7 @@ export default function Generate() {
         <div className="col-span-1">
           <h2 className="text-xl font-semibold mb-4">System Messages</h2>
           <div className="text-sm text-gray-600">Status: {status}{done ? " (done)" : ""}</div>
-          {/*{error && <div className="text-red-600 text-sm">Error: {error}</div>}*/}
+          {wsError && <div className="text-red-600 text-sm bg-red-50 p-2 rounded mt-2">Error: {wsError}</div>}
           <div className="bg-black text-green-200 font-mono p-3 rounded h-48 overflow-auto mb-4">
             <pre className="whitespace-pre-wrap break-words">{thinking}</pre>
             <div ref={logEndRef} />
