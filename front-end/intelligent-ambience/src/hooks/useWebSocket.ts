@@ -17,7 +17,7 @@ export const useWebSocket = (url: string) => {
   
   const wsRef = useRef<WebSocket | null>(null);
 
-  const connect = (data: any) => {
+  const connect = (data: Record<string, unknown>) => {
     // Close any existing socket first
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.close();

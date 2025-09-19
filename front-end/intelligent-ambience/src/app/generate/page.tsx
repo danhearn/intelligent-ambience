@@ -10,13 +10,11 @@ export default function Generate() {
   // Camera hook
   const {
     stream,
-    currentCamera,
     isLoading: cameraLoading,
     error: cameraError,
     videoRef,
     canvasRef,
     startCamera,
-    stopCamera,
     switchCamera,
     takePhoto
   } = useCamera()

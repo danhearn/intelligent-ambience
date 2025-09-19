@@ -27,7 +27,7 @@ export const useLocation = () => {
               lng: longitude,
               address: `${data.city}, ${data.principalSubdivision}, ${data.countryName}`
             });
-          } catch (err) {
+          } catch {
             // Fallback to coordinates if geocoding fails
             setLocation({
               lat: latitude,
@@ -38,7 +38,7 @@ export const useLocation = () => {
             setIsLoading(false);
           }
         },
-        (error) => {
+        () => {
           setError('Location access denied');
           setIsLoading(false);
         }
