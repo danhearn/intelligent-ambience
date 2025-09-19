@@ -42,7 +42,7 @@ export const useCamera = () => {
         } finally {
             setIsLoading(false);
         }
-    }, []); // Only run once on mount
+    }, [currentCamera]); // Include currentCamera dependency
 
     const stopCamera = useCallback(() => {
         if (stream) {
@@ -51,39 +51,11 @@ export const useCamera = () => {
         }
     }, [stream]);
 
-    const switchCamera = useCallback(async () => {
+    const switchCamera = useCallback(() => {
         stopCamera();
-        const newCamera = currentCamera === 'front' ? 'back' : 'front';
-        setCurrentCamera(newCamera);
-        
-        // Start camera with new facing mode after a brief delay
-        setTimeout(async () => {
-            try {
-                setIsLoading(true);
-                setError(null);
-                
-                const constraints = {
-                    video: {
-                        facingMode: newCamera === 'front' ? 'user' : 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                };
-
-                const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                setStream(mediaStream);
-
-                if (videoRef.current) {
-                    videoRef.current.srcObject = mediaStream;
-                }
-            } catch (err) {
-                setError('Camera access denied');
-                console.error('Camera error:', err);
-            } finally {
-                setIsLoading(false);
-            }
-        }, 100);
-    }, [currentCamera, stopCamera]);
+        setCurrentCamera(prev => prev === 'front' ? 'back' : 'front');
+        // startCamera will be called automatically due to the dependency change
+    }, [stopCamera]);
 
     const takePhoto = useCallback((): Promise<Blob | null> => {
         return new Promise((resolve) => {

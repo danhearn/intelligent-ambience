@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCamera } from '@/hooks/useCamera'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -33,12 +33,23 @@ export default function Generate() {
     disconnect
   } = useWebSocket("ws://127.0.0.1:8000/ws/generate")
   
+  // Time state for live updates
+  const [currentTime, setCurrentTime] = useState(new Date())
+  
   const logEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thinking]);
 
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // Start camera on mount
   useEffect(() => {
@@ -82,7 +93,7 @@ export default function Generate() {
             <div>
               <p className="text-sm text-gray-600">Time:</p>
               <p className="font-medium">
-                {new Date().toLocaleString().split(',')[1]}
+                {currentTime.toLocaleString().split(',')[1]}
               </p>
             </div>
           </div>
